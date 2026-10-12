@@ -4,19 +4,213 @@
  */
 package front_end;
 
+import back_end.ListaTaxis;
+import back_end.Taxi;
+
 /**
+ * Interfaz Gráfica de Usuario para el TDA Lista Unidireccional de Taxis.
+ *
+ * <p>Capa de vista exclusiva: toda la lógica de la estructura de datos reside
+ * en {@link back_end.ListaTaxis}. Esta clase únicamente captura datos del
+ * formulario, invoca las operaciones del TDA y refleja el resultado en
+ * la interfaz.</p>
+ *
+ * <p>Distribución de controles:</p>
+ * <ul>
+ *   <li><b>jPanel3</b>: formulario de captura (ID, Nombre, Apellido, Edad,
+ *       CURP, Placas, Modelo) + campo de posición (jTextField8) y campo de
+ *       búsqueda por ID (en jTextField8 también).</li>
+ *   <li><b>jPanel2</b>: botones de operaciones (insertar/remover/ver por
+ *       principio, final, posición y búsqueda).</li>
+ *   <li><b>jTextArea1</b>: área de lista completa (se refresca en cada
+ *       operación).</li>
+ *   <li><b>jTextArea2</b>: área de resultado / mensaje de la última
+ *       operación.</li>
+ * </ul>
  *
  * @author Manuel Ángel Espinoza López. Geovani Gael Carmona Barbosa. Victor Manuel Leyva Perez
  */
 public class Gui_taxis extends javax.swing.JFrame {
-    
-    private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(Gui_taxis.class.getName());
+
+    // ---------------------------------------------------------------
+    // TDA — instancia compartida por todos los handlers
+    // ---------------------------------------------------------------
+    private final ListaTaxis lista = new ListaTaxis();
+
+    private static final java.util.logging.Logger logger =
+            java.util.logging.Logger.getLogger(Gui_taxis.class.getName());
 
     /**
      * Creates new form Gui_taxis
      */
     public Gui_taxis() {
         initComponents();
+        setTitle("Sistema de Gestión de Taxis — Lista Unidireccional TDA");
+        configurarEtiquetasBotones();
+        refrescarLista();
+    }
+
+    // ---------------------------------------------------------------
+    // Configuración inicial de etiquetas (los JButton del panel3
+    // se usan como etiquetas no-clickeables en la plantilla NetBeans)
+    // ---------------------------------------------------------------
+    private void configurarEtiquetasBotones() {
+        // Etiquetas del formulario izquierdo
+        jButton12.setEnabled(false);  // "ID"
+        jButton13.setEnabled(false);  // "Name"
+        jButton14.setEnabled(false);  // "Apellido"
+        jButton15.setEnabled(false);  // "Edad"
+        // Etiquetas del formulario derecho
+        jButton16.setEnabled(false);  // "CURP"
+        jButton17.setEnabled(false);  // "Placas"
+        jButton18.setEnabled(false);  // "Modelo"
+        // jButton19 sigue siendo funcional ("Buscar(ID)")
+
+        // Ajustar tooltips de botones de operación
+        jButton1.setToolTipText("Insertar el taxi del formulario al principio de la lista");
+        jButton7.setToolTipText("Insertar el taxi del formulario al final de la lista");
+        jButton11.setToolTipText("Insertar el taxi del formulario en la posición indicada");
+        jButton2.setToolTipText("Remover el primer taxi de la lista");
+        jButton6.setToolTipText("Remover el último taxi de la lista");
+        jButton10.setToolTipText("Remover el taxi en la posición indicada");
+        jButton3.setToolTipText("Consultar el primer taxi sin modificar la lista");
+        jButton5.setToolTipText("Consultar el último taxi sin modificar la lista");
+        jButton4.setToolTipText("Consultar el taxi en la posición indicada");
+        jButton9.setToolTipText("Buscar un taxi por su ID");
+        jButton8.setToolTipText("Vaciar la lista completamente");
+        jButton19.setToolTipText("Buscar taxi por el ID del campo inferior derecho");
+        jButton19.addActionListener(this::jButton19ActionPerformed);
+
+        // Placeholder text en áreas de texto
+        jTextArea1.setText("(La lista está vacía)");
+        jTextArea2.setText("Resultado de la última operación...");
+
+        // Tip posición
+        jTextField8.setToolTipText("Ingresa la posición (0-based) o el ID para búsqueda");
+    }
+
+    // ---------------------------------------------------------------
+    // Helpers de validación y extracción de datos del formulario
+    // ---------------------------------------------------------------
+
+    /**
+     * Construye un {@link Taxi} a partir de los campos del formulario.
+     * Lanza {@link IllegalArgumentException} con mensaje amigable si
+     * algún campo está vacío o tiene formato incorrecto.
+     */
+    private Taxi leerFormulario() {
+        String sId      = jTextField1.getText().trim();
+        String nombre   = jTextField2.getText().trim();
+        String apellido = jTextField3.getText().trim();
+        String sEdad    = jTextField4.getText().trim();
+        String curp     = jTextField5.getText().trim();
+        String placas   = jTextField6.getText().trim();
+        String modelo   = jTextField7.getText().trim();
+
+        if (sId.isEmpty() || nombre.isEmpty() || apellido.isEmpty()
+                || sEdad.isEmpty() || curp.isEmpty() || placas.isEmpty()
+                || modelo.isEmpty()) {
+            throw new IllegalArgumentException("Todos los campos del formulario deben estar llenos.");
+        }
+
+        int id;
+        try {
+            id = Integer.parseInt(sId);
+        } catch (NumberFormatException e) {
+            jTextField1.requestFocus();
+            throw new IllegalArgumentException("El ID debe ser un número entero positivo.");
+        }
+
+        int edad;
+        try {
+            edad = Integer.parseInt(sEdad);
+        } catch (NumberFormatException e) {
+            jTextField4.requestFocus();
+            throw new IllegalArgumentException("La edad debe ser un número entero válido.");
+        }
+
+        // El constructor compacto del record valida el resto
+        return new Taxi(id, nombre, apellido, edad, curp, placas, modelo);
+    }
+
+    /**
+     * Lee la posición del campo {@code jTextField8}.
+     *
+     * @return entero de posición (0-based).
+     * @throws IllegalArgumentException si está vacío o no es un número.
+     */
+    private int leerPosicion() {
+        String s = jTextField8.getText().trim();
+        if (s.isEmpty()) {
+            jTextField8.requestFocus();
+            throw new IllegalArgumentException("Ingresa una posición en el campo inferior derecho.");
+        }
+        try {
+            return Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            jTextField8.requestFocus();
+            throw new IllegalArgumentException("La posición debe ser un número entero.");
+        }
+    }
+
+    /**
+     * Lee el ID de búsqueda del campo {@code jTextField8}.
+     *
+     * @return entero de ID.
+     * @throws IllegalArgumentException si está vacío o no es un número.
+     */
+    private int leerIdBusqueda() {
+        String s = jTextField8.getText().trim();
+        if (s.isEmpty()) {
+            jTextField8.requestFocus();
+            throw new IllegalArgumentException("Ingresa el ID a buscar en el campo inferior derecho.");
+        }
+        try {
+            return Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            jTextField8.requestFocus();
+            throw new IllegalArgumentException("El ID debe ser un número entero positivo.");
+        }
+    }
+
+    /**
+     * Muestra un diálogo de error estándar.
+     *
+     * @param mensaje texto del error.
+     */
+    private void mostrarError(String mensaje) {
+        javax.swing.JOptionPane.showMessageDialog(
+                this, mensaje, "Error", javax.swing.JOptionPane.ERROR_MESSAGE);
+    }
+
+    /**
+     * Muestra un diálogo de información estándar.
+     *
+     * @param titulo  título del diálogo.
+     * @param mensaje contenido.
+     */
+    private void mostrarInfo(String titulo, String mensaje) {
+        javax.swing.JOptionPane.showMessageDialog(
+                this, mensaje, titulo, javax.swing.JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    /**
+     * Actualiza el {@code jTextArea1} con el contenido actual de la lista.
+     * Se llama después de cada operación de inserción/remoción/vaciado.
+     */
+    private void refrescarLista() {
+        jTextArea1.setText(lista.listarTodo()
+                + "\n\n── Total: " + lista.getTamanio() + " taxi(s) ──");
+        jTextArea1.setCaretPosition(0);
+    }
+
+    /**
+     * Escribe el resultado de la última operación en {@code jTextArea2}.
+     *
+     * @param resultado texto a mostrar.
+     */
+    private void mostrarResultado(String resultado) {
+        jTextArea2.setText(resultado);
     }
 
     /**
@@ -308,49 +502,154 @@ public class Gui_taxis extends javax.swing.JFrame {
         pack();
     }// </editor-fold>//GEN-END:initComponents
 
+    // ---------------------------------------------------------------
+    // Handlers de botones de operación
+    // ---------------------------------------------------------------
+
+    /** Insertar al principio */
     private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton1ActionPerformed
-        // TODO add your handling code here:
+        try {
+            Taxi taxi = leerFormulario();
+            lista.insertarAlPrincipio(taxi);
+            refrescarLista();
+            mostrarResultado("✔ Insertado al PRINCIPIO:\n" + taxi);
+        } catch (IllegalArgumentException e) {
+            mostrarError(e.getMessage());
+        }
     }//GEN-LAST:event_jButton1ActionPerformed
 
+    /** Remover al principio */
     private void jButton2ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton2ActionPerformed
-        // TODO add your handling code here:
+        try {
+            Taxi removido = lista.removerAlPrincipio();
+            refrescarLista();
+            mostrarResultado("✔ Removido del PRINCIPIO:\n" + removido);
+        } catch (IllegalStateException e) {
+            mostrarError(e.getMessage());
+        }
     }//GEN-LAST:event_jButton2ActionPerformed
 
+    /** Ver / mostrar al principio */
     private void jButton3ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton3ActionPerformed
-        // TODO add your handling code here:
+        try {
+            Taxi taxi = lista.mostrarAlPrincipio();
+            mostrarResultado("🔍 Primer elemento (PRINCIPIO):\n" + taxi);
+            mostrarInfo("Primer elemento", taxi.toString());
+        } catch (IllegalStateException e) {
+            mostrarError(e.getMessage());
+        }
     }//GEN-LAST:event_jButton3ActionPerformed
 
+    /** Buscar por posición (panel izquierdo, reutiliza jButton4) */
     private void jButton4ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton4ActionPerformed
-        // TODO add your handling code here:
+        try {
+            int posicion = leerPosicion();
+            Taxi taxi = lista.mostrarEnPosicion(posicion);
+            mostrarResultado("🔍 Elemento en POSICIÓN " + posicion + ":\n" + taxi);
+            mostrarInfo("Posición " + posicion, taxi.toString());
+        } catch (IllegalArgumentException | IllegalStateException | IndexOutOfBoundsException e) {
+            mostrarError(e.getMessage());
+        }
     }//GEN-LAST:event_jButton4ActionPerformed
 
+    /** Ver / mostrar al final */
     private void jButton5ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton5ActionPerformed
-        // TODO add your handling code here:
+        try {
+            Taxi taxi = lista.mostrarAlFinal();
+            mostrarResultado("🔍 Último elemento (FINAL):\n" + taxi);
+            mostrarInfo("Último elemento", taxi.toString());
+        } catch (IllegalStateException e) {
+            mostrarError(e.getMessage());
+        }
     }//GEN-LAST:event_jButton5ActionPerformed
 
+    /** Remover al final */
     private void jButton6ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton6ActionPerformed
-        // TODO add your handling code here:
+        try {
+            Taxi removido = lista.removerAlFinal();
+            refrescarLista();
+            mostrarResultado("✔ Removido del FINAL:\n" + removido);
+        } catch (IllegalStateException e) {
+            mostrarError(e.getMessage());
+        }
     }//GEN-LAST:event_jButton6ActionPerformed
 
+    /** Insertar al final */
     private void jButton7ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton7ActionPerformed
-        // TODO add your handling code here:
+        try {
+            Taxi taxi = leerFormulario();
+            lista.insertarAlFinal(taxi);
+            refrescarLista();
+            mostrarResultado("✔ Insertado al FINAL:\n" + taxi);
+        } catch (IllegalArgumentException e) {
+            mostrarError(e.getMessage());
+        }
     }//GEN-LAST:event_jButton7ActionPerformed
 
+    /** Vaciar la lista */
     private void jButton8ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton8ActionPerformed
-        // TODO add your handling code here:
+        int confirm = javax.swing.JOptionPane.showConfirmDialog(
+                this,
+                "¿Deseas vaciar completamente la lista? Esta acción no se puede deshacer.",
+                "Confirmar vaciado",
+                javax.swing.JOptionPane.YES_NO_OPTION,
+                javax.swing.JOptionPane.WARNING_MESSAGE);
+        if (confirm == javax.swing.JOptionPane.YES_OPTION) {
+            lista.vaciar();
+            refrescarLista();
+            mostrarResultado("🗑 La lista ha sido vaciada.");
+        }
     }//GEN-LAST:event_jButton8ActionPerformed
 
+    /** Buscar por ID (panel derecho, botón central) */
     private void jButton9ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton9ActionPerformed
-        // TODO add your handling code here:
+        try {
+            int id = leerIdBusqueda();
+            Object[] resultado = lista.buscarPorId(id);
+            if (resultado == null) {
+                mostrarError("No se encontró ningún taxi con ID = " + id + ".");
+                mostrarResultado("✘ Búsqueda por ID " + id + ": sin resultados.");
+            } else {
+                Taxi taxi = (Taxi) resultado[0];
+                int  pos  = (Integer) resultado[1];
+                mostrarResultado("🔍 Encontrado en posición " + pos + ":\n" + taxi);
+                mostrarInfo("Taxi encontrado (ID " + id + ")", "Posición: " + pos + "\n" + taxi);
+            }
+        } catch (IllegalArgumentException e) {
+            mostrarError(e.getMessage());
+        }
     }//GEN-LAST:event_jButton9ActionPerformed
 
+    /** Remover por posición */
     private void jButton10ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton10ActionPerformed
-        // TODO add your handling code here:
+        try {
+            int posicion = leerPosicion();
+            Taxi removido = lista.removerEnPosicion(posicion);
+            refrescarLista();
+            mostrarResultado("✔ Removido en POSICIÓN " + posicion + ":\n" + removido);
+        } catch (IllegalArgumentException | IllegalStateException | IndexOutOfBoundsException e) {
+            mostrarError(e.getMessage());
+        }
     }//GEN-LAST:event_jButton10ActionPerformed
 
+    /** Insertar por posición */
     private void jButton11ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton11ActionPerformed
-        // TODO add your handling code here:
+        try {
+            Taxi taxi = leerFormulario();
+            int posicion = leerPosicion();
+            lista.insertarEnPosicion(taxi, posicion);
+            refrescarLista();
+            mostrarResultado("✔ Insertado en POSICIÓN " + posicion + ":\n" + taxi);
+        } catch (IllegalArgumentException | IndexOutOfBoundsException e) {
+            mostrarError(e.getMessage());
+        }
     }//GEN-LAST:event_jButton11ActionPerformed
+
+    /** Buscar por ID — botón del formulario (jButton19) */
+    private void jButton19ActionPerformed(java.awt.event.ActionEvent evt) {
+        // Reutiliza la misma lógica que jButton9
+        jButton9ActionPerformed(evt);
+    }
 
     /**
      * @param args the command line arguments
